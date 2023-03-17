@@ -1,7 +1,7 @@
 import xml.etree.ElementTree as ET
 
-def get_unprotected_components(file_name):
-    unprotected_components = []
+def get_startable_unprotected_components(file_name):
+    startable_unprotected_components = []
 
     tree = ET.parse(file_name)
     root = tree.getroot()
@@ -13,17 +13,24 @@ def get_unprotected_components(file_name):
         for component in components:
             protection = component.get(f"{{{ns['android']}}}exported")
             component_name = component.get(f"{{{ns['android']}}}name")
+            component_permission = component.get(f"{{{ns['android']}}}permission")
+            intent_filters = component.findall(f"./intent-filter", namespaces=ns)
 
-            if protection is None:
-                unprotected_components.append((component_type, component_name, 'android:exported attribute is not specified'))
-            elif protection.lower() == 'true':
-                unprotected_components.append((component_type, component_name, 'android:exported attribute is set to true'))
+            if protection is not None and protection.lower() == 'true':
+                reason = None
+                if component_permission:
+                    reason = f"android:permission attribute is specified: {component_permission}"
+                elif intent_filters:
+                    reason = "Intent filters are present"
+                
+                if reason:
+                    startable_unprotected_components.append((component_type, component_name, reason))
 
-    return unprotected_components
+    return startable_unprotected_components
 
 def main():
     file_name = 'AndroidManifest.xml'
-    unprotected_components = get_unprotected_components(file_name)
+    startable_unprotected_components = get_startable_unprotected_components(file_name)
 
     component_colors = {
         'activity': '\033[92m',  # Green
@@ -33,8 +40,8 @@ def main():
     }
     end_color = '\033[0m'
 
-    print("Unprotected Components:")
-    for component_type, component_name, reason in unprotected_components:
+    print("Startable Unprotected Components:")
+    for component_type, component_name, reason in startable_unprotected_components:
         if component_type in ['activity', 'service', 'receiver', 'provider']:
             print(f"{component_colors[component_type]}[{component_type.capitalize()}]{end_color} {component_name} ({reason})")
 
