@@ -16,16 +16,25 @@ def get_startable_unprotected_components(file_name):
             component_permission = component.get(f"{{{ns['android']}}}permission")
             intent_filters = component.findall(f"./intent-filter", namespaces=ns)
 
-            if protection is not None and protection.lower() == 'true':
-                reason = None
-                if component_permission:
-                    reason = f"android:permission attribute is specified: {component_permission}"
-                elif intent_filters:
-                    reason = "Intent filters are present"
-                
-                if reason:
-                    startable_unprotected_components.append((component_type, component_name, reason))
+            # Determine if the component is exported.
+            exported = False
+            if protection is not None:
+                if protection.lower() == 'true':
+                    exported = True
+            else:
+                # For activities, services, and receivers:
+                # If no android:exported attribute is provided but intent filters exist,
+                # the component is implicitly exported.
+                if component_type in ['activity', 'service', 'receiver'] and intent_filters:
+                    exported = True
 
+            # Only flag components that are exported and unprotected (i.e. no permission set)
+            if exported and not component_permission:
+                if protection is None:
+                    reason = "Implicitly exported due to intent filters"
+                else:
+                    reason = "Explicitly exported (android:exported='true')"
+                startable_unprotected_components.append((component_type, component_name, reason))
     return startable_unprotected_components
 
 def main():
@@ -42,9 +51,7 @@ def main():
 
     print("Startable Unprotected Components:")
     for component_type, component_name, reason in startable_unprotected_components:
-        if component_type in ['activity', 'service', 'receiver', 'provider']:
-            print(f"{component_colors[component_type]}[{component_type.capitalize()}]{end_color} {component_name} ({reason})")
+        print(f"{component_colors.get(component_type, '')}[{component_type.capitalize()}]{end_color} {component_name} ({reason})")
 
 if __name__ == '__main__':
     main()
-
